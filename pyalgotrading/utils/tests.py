@@ -5,6 +5,9 @@ from unittest.mock import patch
 import pandas as pd
 
 from pyalgotrading.constants import TradingType, PlotType
+from .candlesticks.heikinashi import HeikinAshi
+from .candlesticks.linebreak import Linebreak
+from .candlesticks.renko import Renko
 from .func import import_with_install, get_datetime_with_tz, calculate_slippage, slippage, calculate_brokerage, plot_candlestick_chart
 
 
@@ -199,3 +202,85 @@ class TestFunctions(TestCase):
         # result = plot_candlestick_chart(df, plot_type, show=False)
         # print(result)
         # self.assertIsNone(result)
+
+
+class TestCandlesticks(TestCase):
+
+    def test_heikinAshi(self):
+        # Mock Japanese candlesticks pattern data
+        japanese_candles = pd.DataFrame({
+            'timestamp': pd.date_range('2024-01-01', periods=5),
+            'open': [100, 110, 105, 120, 115],
+            'high': [120, 130, 125, 140, 135],
+            'low': [90, 100, 95, 110, 105],
+            'close': [110, 120, 115, 130, 125]
+        })
+        heikin_ashi_data = HeikinAshi(japanese_candles)
+        expected_output = pd.DataFrame({
+            'timestamp': pd.date_range('2024-01-01', periods=5),
+            'open': [105.0, 105.0, 110.0, 110.0, 117.5],
+            'high': [120.0, 130.0, 125.0, 140.0, 135.0],
+            'low': [90.0, 100.0, 95.0, 110.0, 105.0],
+            'close': [105.0, 115.0, 110.0, 125.0, 120.0]
+        })
+        pd.testing.assert_frame_equal(heikin_ashi_data, expected_output)
+        self.assertTrue(heikin_ashi_data.equals(expected_output))
+
+    def test_linebreak(self):
+        # When all_greater is True
+        japanese_candles = pd.DataFrame({
+            'timestamp': pd.date_range('2024-01-01', periods=6),
+            'open': [100, 110, 105, 120, 115, 125],
+            'close': [110, 120, 115, 130, 125, 135]
+        })
+        linebreak_candles = Linebreak(japanese_candles)
+        expected_output = pd.DataFrame({
+            'close': [110, 120, 115, 130, 125, 135],
+            'open': [100, 110, 105, 115, 115, 130],
+            'timestamp': pd.date_range('2024-01-01', periods=6)
+        })
+        expected_output = expected_output.drop(index=4)
+        expected_output = expected_output.reset_index(drop=True)
+        self.assertTrue(linebreak_candles.equals(expected_output))
+
+        # When all_lesser is True
+        linebreak_candles = pd.DataFrame({
+            'timestamp': pd.date_range('2024-01-01', periods=4),
+            'close': [70, 65, 60, 55],
+            'open': [100, 110, 105, 115],
+        })
+        linebreak_candles = Linebreak(linebreak_candles)
+        expected_output = pd.DataFrame({
+            'close': [70, 65, 60, 55],
+            'open': [100, 110, 105, 60],
+            'timestamp': pd.date_range('2024-01-01', periods=4)
+        })
+        self.assertTrue(linebreak_candles.equals(expected_output))
+
+    def test_renko(self):
+        # When candle['close'] > max_open_close
+        japanese_candles = pd.DataFrame({
+            'timestamp': pd.date_range('2024-01-01', periods=6),
+            'open': [100, 110, 120, 120, 115, 125],
+            'close': [110, 120, 115, 130, 125, 135]
+        })
+        renko_candles = Renko(japanese_candles, brick_count=5)
+        expected_output = pd.DataFrame({
+            'timestamp': ['2024-01-01', '2024-01-02', '2024-01-02', '2024-01-04', '2024-01-04', '2024-01-06'],
+            'open': [100, 110, 115, 120, 125, 130],
+            'close': [110, 115, 120, 125, 130, 135]
+        })
+        expected_output['timestamp'] = pd.to_datetime(expected_output['timestamp'])
+        pd.testing.assert_frame_equal(renko_candles, expected_output)
+        self.assertTrue(renko_candles.equals(expected_output))
+
+        # When : candle['close'] < min_open_close; initial_close is not None
+        japanese_candles['close'] = [90, 85, 80, 75, 70, 65]  # Modify close prices to be less than min_open_close
+        renko_candles = Renko(japanese_candles, brick_count=5, initial_open=15, initial_close=10)
+        expected_output = pd.DataFrame({
+            'timestamp': ['2024-01-01', '2024-01-02', '2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05', '2024-01-06'],
+            'open': [105, 95, 90, 85, 80, 75, 70],
+            'close': [95, 90, 85, 80, 75, 70, 65]
+        })
+        expected_output['timestamp'] = pd.to_datetime(expected_output['timestamp'])
+        self.assertTrue(renko_candles.equals(expected_output))

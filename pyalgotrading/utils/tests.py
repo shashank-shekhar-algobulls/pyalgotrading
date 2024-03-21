@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from datetime import datetime, timezone
 from unittest import TestCase
 from unittest.mock import patch
@@ -21,15 +23,12 @@ class TestFunctions(TestCase):
         result = import_with_install(package_import_name)
         self.assertEqual(result.__name__, package_import_name)
 
-        # package_import_name = "pillow"
-        # result = import_with_install(package_import_name)
-        # print(result)
-        # # Test for package not installed (Fix: Throwing StopIteration error)
-        # with patch('builtins.__import__', side_effect=[ImportError("error message"), "mock_result"]):
-        #     result = import_with_install(package_import_name, dependancies=["invalid_dependency"])
-        #     self.assertEqual(result, "mock_result")
-        #
-        # mock_check_call.assert_called_once()
+        package_import_name = "flask"
+        result = import_with_install(package_import_name)
+        self.assertEqual(result.__name__, package_import_name)
+        # To remove the installed package/module
+        cmd_list = [sys.executable, '-m', 'pip', 'uninstall', '-y', package_import_name]
+        subprocess.check_call(cmd_list)
 
     def test_get_datetime_with_tz(self):
         # try
@@ -196,12 +195,13 @@ class TestFunctions(TestCase):
         plot_type = PlotType.RENKO
         result = plot_candlestick_chart(df, plot_type, show=False)
         self.assertIsNone(result)
+        mock_figure.assert_called()
 
-        # # When plot_type is QUANDL_JAPANESE
-        # plot_type = PlotType.QUANDL_JAPANESE
-        # result = plot_candlestick_chart(df, plot_type, show=False)
-        # print(result)
-        # self.assertIsNone(result)
+        # When plot_type is QUANDL_JAPANESE
+        plot_type = PlotType.QUANDL_JAPANESE
+        result = plot_candlestick_chart(df, plot_type, show=False)
+        self.assertIsNone(result)
+        mock_figure.assert_called()
 
 
 class TestCandlesticks(TestCase):

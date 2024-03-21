@@ -1274,19 +1274,10 @@ class TestAlgoBullsConnection(TestCase):
     @patch("pyalgotrading.algobulls.connection.qs.reports.html")
     def test_get_report_statistics(self, mock_html):
         strategy_code = self.strategy_code
+        # In case of ZeroDivisionError
         pnl_df = pd.DataFrame(
             {
-                "entry_price": [97.20, 92.50],
-                "entry_quantity": [20, 20],
-                "entry_transaction_type": ["BUY", "SELL"],
                 "entry_timestamp": pd.to_datetime(["2021-08-02 10:15:00+05:30", "2021-08-02 13:15:00+05:30"]),
-                "exit_price": [92.50, 92.60],
-                "exit_quantity": [20, 20],
-                "exit_transaction_type": ["SELL", "BUY"],
-                "exit_timestamp": pd.to_datetime(["2021-08-02 13:15:00+05:30", "2021-08-02 15:30:00+05:30"]),
-                "pnl_absolute": [-94.0, -2.0],
-                "pnl_cumulative_absolute": [-94.0, -96.0],
-                "brokerage": [0, 0],
                 "net_pnl": [-94.0, -2.0]
             }
         )
@@ -1295,9 +1286,10 @@ class TestAlgoBullsConnection(TestCase):
         self.assertEqual(str(value_error.exception), "ERROR: PnL data generated is too less to perform statistical analysis")
 
         dummy_data = {
-            'entry_timestamp': pd.date_range(start="2021-08-02 10:15+0530", periods=10, freq='D'),
-            'net_pnl': [100, -50, 75, 120, -80, 200, -150, 100, -50, 75],
-            'total_funds': [100, 50, 125, 245, 165, 365, 215, 315, 265, 340]  # Assuming initial_funds is 0
+            'instrument_segment': ['NSE', 'NSE', 'NSE', 'NSE', 'NSE'],
+            'instrument_tradingsymbol': ['RELIANCE', 'RELIANCE', 'RELIANCE', 'RELIANCE', 'RELIANCE'],
+            'entry_timestamp': ['2023-01-02 10:15:00+05:30', '2023-01-03 12:15:00+05:30', '2023-01-05 10:15:00+05:30', '2023-01-05 11:15:00+05:30', '2023-01-06 09:15:00+05:30 '],
+            'net_pnl': [660000.0, -242500.0, -577500.0, 505000.0, 397500.0],
         }
         dummy_df = pd.DataFrame(dummy_data)
 
@@ -1306,12 +1298,18 @@ class TestAlgoBullsConnection(TestCase):
         self.connection.get_report_statistics(strategy_code=strategy_code, initial_funds=0, report="metrics", file_path='dummy_pnl_data.csv')
         mock_html.assert_called_once()
 
+        # Using .xlsx file
+        # dummy_data['entry_timestamp'] = pd.date_range(start="2021-08-02 10:15", periods=10, freq='D')
+        pd.DataFrame(dummy_data).to_excel('dummy_pnl_data.xlsx', index=False)
+        self.connection.get_report_statistics(strategy_code=strategy_code, initial_funds=0, report="metrics", file_path='dummy_pnl_data.xlsx')
+        mock_html.assert_called()
+
         # Using wrong file format
         dummy_df.to_csv('dummy_pnl_data.jpg', index=False)
         with self.assertRaises(Exception) as context:
             self.connection.get_report_statistics(strategy_code=strategy_code, initial_funds=1000, report="metrics", file_path='dummy_pnl_data.jpg')
             os.remove('dummy_pnl_data.jpg')
-        self.assertEqual(str(context.exception), f'ERROR: File with extension .jpg is not supported.\n Please provide path to files with extension as ".csv" or ".xlxs"')
+        self.assertEqual(str(context.exception), f'ERROR: File with extension .jpg is not supported.\n Please provide path to files with extension as ".csv" or ".xlsx"')
 
         # File without entry_timestamp & net_pnl columns
         dummy_df.drop(columns=['entry_timestamp', 'net_pnl'], inplace=True)
@@ -1321,7 +1319,7 @@ class TestAlgoBullsConnection(TestCase):
         self.assertEqual(str(context.exception), "ERROR: Given  .csv file does not have the required columns 'entry_timestamp' and 'net_pnl'.")
 
         # Wrong time format
-        dummy_data['entry_timestamp'] = pd.date_range(start="2021-08-02", periods=10, freq='D')
+        dummy_data['entry_timestamp'] = pd.date_range(start="2021-08-02", periods=5, freq='D')
         dummy_df = pd.DataFrame(dummy_data)
         dummy_df.to_csv('dummy_pnl_data.csv', index=False)
         with self.assertRaises(Exception) as ValueError:

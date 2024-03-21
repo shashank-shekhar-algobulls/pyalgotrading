@@ -142,6 +142,11 @@ class TestBrokerConnectionZerodha(TestCase):
         result = self.broker.get_close_price_last_day(self.instrument)
         self.assertEqual(result, 140)
 
+    def test_get_historical_data(self):
+        result = self.broker.get_historical_data(self.instrument, "1D", "2022-01-01", "2022-03-01")
+        self.assertIsNotNone(result)
+        self.broker.api.historical_data.self.broker.api.historical_data()
+
     def test_get_margins(self):
         result = self.broker.get_margins("equity")
         self.assertEqual(result, {'net': 1000, 'utilised': 500})
@@ -149,6 +154,11 @@ class TestBrokerConnectionZerodha(TestCase):
     def test_get_funds(self):
         result = self.broker.get_funds("equity")
         self.assertEqual(result, 1000)
+
+    def test_get_profile(self):
+        self.broker.api.profile.return_value = "Profile fetched successfully"
+        result = self.broker.get_profile()
+        self.assertEqual(result, "Profile fetched successfully")
 
     def test_place_order(self):
         self.broker.api.place_order.return_value = "Order placed successfully"
@@ -163,7 +173,39 @@ class TestBrokerConnectionZerodha(TestCase):
         )
         self.assertEqual(result, "Order placed successfully")
 
+    def test_get_order_status(self):
+        self.broker.api.order_history.return_value = [{'status': 'COMPLETED'}, {'status': 'PENDING'}, {'status': 'OPEN'}]
+        result = self.broker.get_order_status("12345")
+        self.assertEqual(result, 'OPEN')
+
     def test_cancel_order(self):
         self.broker.api.cancel_order.return_value = "Order cancelled successfully"
         result = self.broker.cancel_order(25, BrokerOrderTypeConstants.REGULAR)
         self.assertEqual(result, "Order cancelled successfully")
+
+
+class TestInstrument(TestCase):
+    def setUp(self):
+        self.instrument = self.instrument = Instrument(
+            'NSE_FO',
+            'NSE',
+            'MRF25NOV2177500CE',
+            107320,
+            0.0500,
+            10,
+            None,
+            77500.0000
+        )
+
+    def test_will_expire(self):
+        result = self.instrument.will_expire()
+        self.assertEqual(result, False)
+
+    def test_is_expired(self):
+        result = self.instrument.is_expired()
+        self.assertEqual(result, False)
+
+    def test___repr__(self):
+        result = self.instrument.__repr__()
+        self.assertIsNotNone(result)
+        self.assertIn("MRF25NOV2177500CE", result)

@@ -1299,7 +1299,6 @@ class TestAlgoBullsConnection(TestCase):
         mock_html.assert_called_once()
 
         # Using .xlsx file
-        # dummy_data['entry_timestamp'] = pd.date_range(start="2021-08-02 10:15", periods=10, freq='D')
         pd.DataFrame(dummy_data).to_excel('dummy_pnl_data.xlsx', index=False)
         self.connection.get_report_statistics(strategy_code=strategy_code, initial_funds=0, report="metrics", file_path='dummy_pnl_data.xlsx')
         mock_html.assert_called()

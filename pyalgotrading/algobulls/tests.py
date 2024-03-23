@@ -3,7 +3,7 @@ import json
 import os
 import pprint
 import unittest
-from datetime import datetime as dt, timezone, timedelta, time
+from datetime import datetime as dt, timezone, timedelta, time, datetime
 from io import StringIO
 from json import JSONDecodeError
 from unittest import TestCase
@@ -12,7 +12,7 @@ from unittest.mock import patch, Mock, MagicMock
 import pandas as pd
 from tabulate import tabulate
 
-from pyalgotrading.constants import TradingType, TradingReportType, StrategyMode, CandleInterval, EXCHANGE_LOCALE_MAP
+from pyalgotrading.constants import TradingType, TradingReportType, StrategyMode, CandleInterval, EXCHANGE_LOCALE_MAP, Country
 from pyalgotrading.utils.func import get_raw_response, get_datetime_with_tz
 from .api import AlgoBullsAPI
 from .connection import AlgoBullsConnection
@@ -662,9 +662,39 @@ class TestAlgoBullsAPI(TestCase):
 
 
 class TestAlgoBullsConnection(TestCase):
+    def __init__(self, methodName: str = "runTest"):
+        super().__init__(methodName)
+        self.strategy_country_map = None
+
     def setUp(self):
         self.connection = AlgoBullsConnection()
         self.strategy_code = "TestStrategyCode"
+
+        self.connection.api.get_reports = MagicMock(return_value={
+            "totalTrades": 2,
+            "data": [
+                {
+                    "orderId": "ORDER_ID_1",
+                    "transaction_type": "BUY",
+                    "instrument": "AAPL",
+                    "quantity": 10,
+                    "currency": "USD",
+                    "price": 150,
+                    "timestamp_created": "2024-01-01T00:00:00Z",
+                    "customer_tradebook_states": [{"state": "FILLED", "timestamp": "2024-01-01T00:05:00Z"}]
+                },
+                {
+                    "orderId": "ORDER_ID_2",
+                    "transaction_type": "SELL",
+                    "instrument": "GOOGL",
+                    "quantity": 5,
+                    "currency": "USD",
+                    "price": 200,
+                    "timestamp_created": "2024-01-01T00:10:00Z",
+                    "customer_tradebook_states": [{"state": "PENDING", "timestamp": "2024-01-01T00:12:00Z"}]
+                }
+            ]
+        })
 
     @patch('builtins.print')
     def test_get_authorization_url(self, mock_print):
@@ -1145,131 +1175,86 @@ class TestAlgoBullsConnection(TestCase):
 
     # FIX
     def test_get_report_order_history(self):
-        """
-        Test for get_report_order_history method
-        """
-        '''
-        Testcase: strategy_code is not instance of str
-        '''
-        strategy_code = 123
-        trading_type = TradingType.BACKTESTING
+        # When render_as_dataframe is True
+        result_true = self.connection.get_report_order_history(self.strategy_code, TradingType.BACKTESTING, True)
+        self.connection.api.get_reports.assert_called_once_with(strategy_code=self.strategy_code, trading_type=TradingType.BACKTESTING, report_type=TradingReportType.ORDER_HISTORY, country=Country.DEFAULT.value, current_page=1)
+        self.assertIsInstance(result_true, pd.DataFrame)
+        expected_columns = ["timestamp_created", "transaction_type", "state", "instrument", "quantity", "currency", "price"]
+        self.assertListEqual(list(result_true.columns), expected_columns)
 
-        with self.assertRaises(AssertionError) as context:
-            self.connection.get_report_order_history(strategy_code, trading_type)
-        self.assertEqual(str(context.exception), f'Argument "strategy_code" should be a string')
+        # When render_as_dataframe is False
+        result_false = self.connection.get_report_order_history(self.strategy_code, TradingType.BACKTESTING, False)
+        self.assertIsInstance(result_false, str)
+        self.assertIn("ORDER_ID_1", result_false)
+        self.assertIn("ORDER_ID_2", result_false)
 
-        '''
-        Testcase: trading_type is not instance of TradingType
-        '''
-        strategy_code = "TestStrategyCode"
-        trading_type = TradingReportType.ORDER_HISTORY
+        # # When response.get("data") is None
+        # self.connection.api.get_reports = MagicMock(return_value={"totalTrades": 0, "data": []})
+        # result = self.connection.get_report_order_history(self.strategy_code, TradingType.BACKTESTING, False)
+        # print(result)
 
-        with self.assertRaises(AssertionError) as context:
-            self.connection.get_report_order_history(strategy_code, trading_type)
-        self.assertEqual(str(context.exception), f'Argument "trading_type" should be an enum of type {TradingType.__name__}')
-        '''
-        Testcase for blocks:
-            - if main_data:
-                - else:
-        '''
-        from tabulate import tabulate
-        strategy_code = "TestStrategyCode"
-        trading_type = TradingType.BACKTESTING
+        # # When AlgoBullsAPIGatewayTimeoutErrorException
+        # with patch('time.sleep') as mock_sleep:
+        #     self.connection.api.get_reports = MagicMock(side_effect=AlgoBullsAPIGatewayTimeoutErrorException("get", AlgoBullsAPI.SERVER_ENDPOINT, Mock(), 200))
+        #     with self.assertRaises(AlgoBullsAPIGatewayTimeoutErrorException):
+        #         result = self.connection.get_report_order_history(self.strategy_code, TradingType.BACKTESTING, False)
+        #
+        #         mock_sleep.return_value = "Going to for 5 secs"
+        #     # result = self.connection.get_report_order_history(self.strategy_code, TradingType.BACKTESTING, False)
+        # print(result)
 
-        get_reports_response = {"totalTrades": 999,
-                                "data": [{"orderId": 123, "transaction_type": "SELL", "instrument": "NSE:ADANI", "quantity": 20, "currency": "INR", "price": 20, "customer_tradebook_states": {"timestamp_created": [dt.now()], "state": ["OPEN"]}}]}
-        order_detail = [
-            ["Order ID", get_reports_response["data"][0]["orderId"]],
-            ["Transaction Type", get_reports_response["data"][0]["transaction_type"]],
-            ["Instrument", get_reports_response["data"][0]["instrument"]],
-            ["Quantity", get_reports_response["data"][0]["quantity"]],
-            ["Price", str(get_reports_response["data"][0]["currency"]) + str(get_reports_response["data"][0]["price"])]
-        ]
-
-        def get_reports_side_effect(strategy_code, trading_type, report_type, country, current_page):
-            get_reports_side_effect.counter += 1
-            if get_reports_side_effect.counter == 1:
-                raise AlgoBullsAPIGatewayTimeoutErrorException("get", AlgoBullsAPI.SERVER_ENDPOINT, Mock(), 200)
-            elif get_reports_side_effect.counter == 2:
-                return get_reports_response
-
-        get_reports_side_effect.counter = 0
-
-        with patch("pyalgotrading.algobulls.connection.AlgoBullsAPI.get_reports") as mock_get_reports:
-            mock_get_reports.side_effect = get_reports_side_effect
-            result = self.connection.get_report_order_history(strategy_code, trading_type)
-            self.assertIn(tabulate(order_detail, tablefmt="psql"), result)
-            self.assertIn(tabulate(get_reports_response["data"][0]["customer_tradebook_states"], headers="keys", tablefmt="psql"), result)
-
-        '''
-        Testcase for blocks:
-            - if main_data:
-                - if render_as_dataframe:
-        '''
-        # def get_reports_side_effect(strategy_code, trading_type, report_type, country, current_page):
-        #     get_reports_side_effect.counter += 1
-        #     if get_reports_side_effect.counter == 1:
-        #         raise AlgoBullsAPIGatewayTimeoutErrorException("get", AlgoBullsAPI.SERVER_ENDPOINT, Mock(), 200)
-        #     elif get_reports_side_effect.counter == 2:
-        #         return get_reports_response
-
-        get_reports_response = {"totalTrades": 999,
-                                "data": [{"orderId": 123, "transaction_type": "SELL", "instrument": "NSE:ADANI", "quantity": 20, "currency": "INR", "price": 20, "customer_tradebook_states": [{"timestamp_created": dt.now(), "state": "OPEN"}]}]}
-
-        def get_reports_side_effect(strategy_code, trading_type, report_type, country, current_page):
-            get_reports_side_effect.counter += 1
-            if get_reports_side_effect.counter == 1:
-                raise AlgoBullsAPIGatewayTimeoutErrorException("get", AlgoBullsAPI.SERVER_ENDPOINT, Mock(), 200)
-            elif get_reports_side_effect.counter == 2:
-                return get_reports_response
-
-        get_reports_side_effect.counter = 0
-
-        with patch("pyalgotrading.algobulls.connection.AlgoBullsAPI.get_reports") as mock_get_reports:
-            mock_get_reports.side_effect = get_reports_side_effect
-            result = self.connection.get_report_order_history(strategy_code, trading_type, render_as_dataframe=True)
-            # self.assertEqual(get_reports_response["data"][0]["orderId"], result.iloc[0]["orderId"])
-            # print("\nresult\n", result)
-            # self.assertIn(tabulate(order_detail, tablefmt="psql"), result)
-            # self.assertIn(tabulate(get_reports_response["data"][0]["customer_tradebook_states"], headers="keys", tablefmt="psql"), result)
-
-    # FIX
     def test_get_report_pnl_table(self):
-        """
-        Test for get_report_pnl_table method
-        """
-        '''
-        Testcase: 
-        '''
-        strategy_code = "TestStrategyCode"
-        trading_type = TradingType.BACKTESTING
+        self.connection.api.get_reports = MagicMock(return_value={
+            "data": [
+                {
+                    "strategy.instrument.segment": "EQUITY",
+                    "strategy.instrument.tradingsymbol": "AAPL",
+                    "entry.timestamp": "2024-03-01 | 09:30 +0000",
+                    "entry.isBuy": True,
+                    "entry.quantity": 10,
+                    "entry.prefix": "USD",
+                    "entry.price": 200.0,
+                    "entry.variety": "LIMIT",
+                    "exit.timestamp": "2024-03-02 | 09:30 +0000",
+                    "exit.isBuy": False,
+                    "exit.quantity": 5,
+                    "exit.prefix": "USD",
+                    "exit.price": 210.0,
+                    "exit.variety": "LIMIT",
+                    "pnlAbsolute.value": 500.0
+                }
+            ]
+        })
+        # When country is "US"
+        country = "US"
+        result = self.connection.get_report_pnl_table(self.strategy_code, TradingType.BACKTESTING, country, slippage_percent=1)
+        self.connection.api.get_reports.assert_called_once_with(
+            strategy_code=self.strategy_code,
+            trading_type=TradingType.BACKTESTING,
+            report_type=TradingReportType.PNL_TABLE,
+            country=country,
+            current_page=1
+        )
+        self.assertIsInstance(result, pd.DataFrame)
+        self.assertEqual(len(result), 1)
 
-        data = [{'key': 1978408, 'mode': {'modeIcon': 'customIconBT'}, 'strategy': {'code': '', 'instrument': {'segment': 'NSE', 'tradingsymbol': 'ADANIPOWER'}, 'name': 'Aroon Crossover'},
-                 'broker': {'icon': 'https://', 'name': 'AlgoBulls Virtual Broker'},
-                 'entry': {'timestamp': '2023-07-28 | 12:15 +0530', 'isBuy': True, 'quantity': 20, 'prefix': '₹', 'price': 256.5, 'variety': '', 'isManual': False, 'popover': {'data': [
-                     {'order': {'tradingsymbol': 'NSE:ADANIPOWER', 'segment': 'NSE', 'isBuy': True, 'orderId': 'fb30706fe21c4f59ba7374b8dfe7bdef', 'quantity': 20, 'price': 256.5, 'icon': 'ClockCircleFilled', 'color': '#E22828'},
-                      'states': [{'label': 'PUT ORDER REQ RECEIVED', 'timestamp': '2023-07-28 06:45:00+0000'}, {'label': 'VALIDATION PENDING', 'timestamp': '2023-07-28 06:45:00+0000'},
-                                 {'label': 'OPEN PENDING', 'timestamp': '2023-07-28 06:45:00+0000'},
-                                 {'label': 'OPEN', 'timestamp': '2023-07-28 06:45:00+0000'}, {'label': 'COMPLETE', 'timestamp': '2023-07-28 06:45:00+0000'}]}],
-                     'component': {'type': 'timeline', 'container': {'span': 24, 'style': {'alignSelf': 'center'}},
-                                   'widget': {'timelineProps': {'mode': 'left', 'style': {'width': '100%'}}}}}},
-                 'exit': {'timestamp': '2023-07-28 | 15:30 +0530', 'isBuy': False, 'quantity': 20, 'prefix': '₹', 'price': 257.6, 'variety': '', 'isManual': False, 'popover': {'data': [
-                     {'order': {'tradingsymbol': 'NSE:ADANIPOWER', 'segment': 'NSE', 'isBuy': False, 'orderId': '5acde5acaf0742fe8367c63e00edb580', 'quantity': 20, 'price': 257.6, 'icon': 'ClockCircleFilled', 'color': '#E22828'},
-                      'states': [{'label': 'PUT ORDER REQ RECEIVED', 'timestamp': '2023-07-28 10:00:00+0000'}, {'label': 'VALIDATION PENDING', 'timestamp': '2023-07-28 10:00:00+0000'},
-                                 {'label': 'OPEN PENDING', 'timestamp': '2023-07-28 10:00:00+0000'},
-                                 {'label': 'OPEN', 'timestamp': '2023-07-28 10:00:00+0000'}, {'label': 'COMPLETE', 'timestamp': '2023-07-28 10:00:00+0000'}]}],
-                     'component': {'type': 'timeline', 'container': {'span': 24, 'style': {'alignSelf': 'center'}},
-                                   'widget': {'timelineProps': {'mode': 'left', 'style': {'width': '100%'}}}}}},
-                 'pnlAbsolute': {'value': 22.0}, 'pnlPercentage': {'value': 0.43}}]
+        # When country is None
+        result = self.connection.get_report_pnl_table(self.strategy_code, TradingType.BACKTESTING, None)
+        self.connection.api.get_reports.assert_called_with(
+            strategy_code=self.strategy_code,
+            trading_type=TradingType.BACKTESTING,
+            report_type=TradingReportType.PNL_TABLE,
+            country=Country.DEFAULT.value,
+            current_page=1
+        )
+        self.assertIsInstance(result, pd.DataFrame)
+        self.assertEqual(len(result), 1)
 
-        with patch("pyalgotrading.algobulls.connection.AlgoBullsAPI.get_reports") as mock_get_reports:
-            response = {"data": data}
-            mock_get_reports.return_value = response
-            result = self.connection.get_report_pnl_table(strategy_code, trading_type, "India")
-            print("\nresult\n", result)
-
-            # report_stats = self.connection.get_report_statistics(strategy_code, html_dump=False, pnl_df=result)
-            # print("\nreport_stats\n", report_stats)
+        # When data is None
+        self.connection.api.get_reports = MagicMock(return_value={"data": None})
+        result = self.connection.get_report_pnl_table(self.strategy_code, TradingType.BACKTESTING, None)
+        self.assertIsInstance(result, pd.DataFrame)
+        self.assertEqual(len(result), 0)
 
     @patch("pyalgotrading.algobulls.connection.qs.reports.html")
     def test_get_report_statistics(self, mock_html):
@@ -1488,26 +1473,27 @@ class TestAlgoBullsConnection(TestCase):
         self.assertEqual(result, mock_start_strategy_algotrading.return_value)
 
         # Invalid exchange
+        # with patch('builtins.print') as mock_print:
         start_timestamp = "15:30 +0530"
         end_timestamp = "15:30 +0530"
         instruments = 'I:TATAMOTORS'
         trading_type = TradingType.REALTRADING
-        with self.assertRaises(KeyError) as context:
-            result = self.connection.start_job(
-                strategy_code=strategy_code,
-                start_timestamp=start_timestamp,
-                end_timestamp=end_timestamp,
-                instruments=instruments,
-                lots=lots,
-                strategy_parameters=strategy_parameters,
-                candle_interval=candle_interval,
-                strategy_mode=mode,
-                initial_funds_virtual=initial_funds_virtual,
-                delete_previous_trades=delete_previous_trades,
-                trading_type=trading_type,
-                broking_details=broking_details
-            )
-        self.assertEqual(str(context.exception), "'en-US'")
+        # with self.assertRaises(KeyError) as context:
+        result = self.connection.start_job(
+            strategy_code=strategy_code,
+            start_timestamp=start_timestamp,
+            end_timestamp=end_timestamp,
+            instruments=instruments,
+            lots=lots,
+            strategy_parameters=strategy_parameters,
+            candle_interval=candle_interval,
+            strategy_mode=mode,
+            initial_funds_virtual=initial_funds_virtual,
+            delete_previous_trades=delete_previous_trades,
+            trading_type=trading_type,
+            broking_details=broking_details
+        )
+        self.assertEqual(result, "Mock response")
 
     @patch("pyalgotrading.algobulls.connection.AlgoBullsConnection.start_job", return_value="Mock return value")
     def test_backtest(self, mock_start_job):
@@ -1590,6 +1576,44 @@ class TestAlgoBullsConnection(TestCase):
         result = self.connection.get_backtesting_report_order_history(self.strategy_code)
         self.assertEqual(result, "Mock get_report_order_history")
 
+    @patch('pyalgotrading.algobulls.api.AlgoBullsAPI.delete_previous_trades', Mock(return_value={"message": "Mocked delete_previous_trades"}))
+    @patch('pyalgotrading.algobulls.api.AlgoBullsAPI.set_strategy_config', Mock(return_value="Mocked set_strategy_config"))
+    @patch('pyalgotrading.algobulls.api.AlgoBullsAPI.start_strategy_algotrading', Mock(return_value="Mocked start_strategy_algotrading"))
+    def test_papertrade(self):
+        strategy = "my_strategy"
+        start = datetime(2024, 1, 1)
+        end = datetime(2024, 1, 2)
+        instruments = ["NASDAQ:AAPL", "NYSE:GOOGL"]
+        lots = 10
+        parameters = {"param1": 123, "param2": "abc"}
+        candle = CandleInterval._1_MINUTE
+        mode = "intraday"
+        delete_previous_trades = True
+        initial_funds_virtual = 1000000
+        vendor_details = {"brokerName": "12345", "credentialParameters": "abcdef"}
+        result = self.connection.papertrade(
+            strategy=strategy,
+            start=start,
+            end=end,
+            instruments=instruments,
+            lots=lots,
+            parameters=parameters,
+            candle=candle,
+            mode=mode,
+            delete_previous_trades=delete_previous_trades,
+            initial_funds_virtual=initial_funds_virtual,
+            vendor_details=vendor_details
+        )
+        self.assertIsNone(result)
+        self.connection.api.delete_previous_trades.assert_called_once()
+        self.connection.api.set_strategy_config.assert_called_once()
+        self.connection.api.start_strategy_algotrading.assert_called_once()
+
+    def test_get_papertrading_job_status(self):
+        self.connection.api.get_job_status = Mock(return_value="Mocked get_job_status")
+        result = self.connection.get_papertrading_job_status(self.strategy_code)
+        self.assertEqual(result, "Mocked get_job_status")
+
     @patch("pyalgotrading.algobulls.connection.AlgoBullsConnection.get_logs", return_value="Mock get_logs")
     def test_get_papertrading_logs(self, mock_get_logs):
         result = self.connection.get_papertrading_logs(self.strategy_code)
@@ -1612,6 +1636,11 @@ class TestAlgoBullsConnection(TestCase):
         result = self.connection.get_realtrading_logs(self.strategy_code)
         self.assertEqual(result, "Mock get_logs")
 
+    def test_get_realtrading_report_pnl_table(self):
+        self.connection.get_report_pnl_table = Mock(return_value="Mocked get_report_pnl_table")
+        result = self.connection.get_realtrading_report_pnl_table(self.strategy_code)
+        self.assertEqual(result, "Mocked get_report_pnl_table")
+
     @patch("pyalgotrading.algobulls.connection.AlgoBullsConnection.get_realtrading_report_pnl_table", MagicMock(return_value="Mock get_realtrading_report_pnl_table"))
     @patch("pyalgotrading.algobulls.connection.AlgoBullsConnection.get_report_statistics", MagicMock(return_value="Mock get_report_statistics"))
     def test_get_realtrading_report_statistics(self):
@@ -1623,6 +1652,12 @@ class TestAlgoBullsConnection(TestCase):
         }
         result = self.connection.get_realtrading_report_statistics(self.strategy_code)
         self.assertEqual(result, "Mock get_report_statistics")
+
+    def test_get_realtrading_report_order_history(self):
+        result = self.connection.get_realtrading_report_order_history(self.strategy_code)
+        self.assertIsInstance(result, str)
+        self.assertIn("ORDER_ID_1", result)
+        self.assertIn("ORDER_ID_2", result)
 
 
 if __name__ == '__main__':

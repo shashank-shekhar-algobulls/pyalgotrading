@@ -795,8 +795,8 @@ class AlgoBullsConnection:
         if len(_) == 2 and EXCHANGE_LOCALE_MAP.get(_[0]) is not None:
             location = EXCHANGE_LOCALE_MAP[_[0]]
         else:
-            print('Warning: Valid exchange not given, assuming exchange as "NSE_EQ".\n Expected format for giving an instrument "<EXCHANGE>:<TRADING_SYMBOL>"\nPossible exchange values include: {EXCHANGE_LOCALE_MAP.keys()}')
-            location = EXCHANGE_LOCALE_MAP[Locale.DEFAULT.value]
+            print(f'Warning: Valid exchange not given, assuming exchange as "NSE_EQ".\n Expected format for giving an instrument "<EXCHANGE>:<TRADING_SYMBOL>"\nPossible exchange values include: {EXCHANGE_LOCALE_MAP.keys()}')
+            location = Locale.INDIA.value
 
         # generate instruments' id list
         instrument_list = []

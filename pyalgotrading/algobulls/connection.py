@@ -596,10 +596,10 @@ class AlgoBullsConnection:
             _, _ext = os.path.splitext(file_path)
             if _ext == '.csv':
                 pnl_df = pd.read_csv(file_path)
-            elif _ext == '.xlxs':
+            elif _ext == '.xlsx':
                 pnl_df = pd.read_excel(file_path)
             else:
-                raise Exception(f'ERROR: File with extension {_ext} is not supported.\n Please provide path to files with extension as ".csv" or ".xlxs"')
+                raise Exception(f'ERROR: File with extension {_ext} is not supported.\n Please provide path to files with extension as ".csv" or ".xlsx"')
 
             # handle the exceptions gracefully, check the validity of the input file
             if "entry_timestamp" not in pnl_df.columns or "net_pnl" not in pnl_df.columns:
@@ -795,8 +795,8 @@ class AlgoBullsConnection:
         if len(_) == 2 and EXCHANGE_LOCALE_MAP.get(_[0]) is not None:
             location = EXCHANGE_LOCALE_MAP[_[0]]
         else:
-            print('Warning: Valid exchange not given, assuming exchange as "NSE_EQ".\n Expected format for giving an instrument "<EXCHANGE>:<TRADING_SYMBOL>"\nPossible exchange values include: {EXCHANGE_LOCALE_MAP.keys()}')
-            location = EXCHANGE_LOCALE_MAP[Locale.DEFAULT.value]
+            print(f'Warning: Valid exchange not given, assuming exchange as "NSE_EQ".\n Expected format for giving an instrument "<EXCHANGE>:<TRADING_SYMBOL>"\nPossible exchange values include: {EXCHANGE_LOCALE_MAP.keys()}')
+            location = Locale.INDIA.value
 
         # generate instruments' id list
         instrument_list = []

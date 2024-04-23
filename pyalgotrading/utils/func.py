@@ -105,7 +105,7 @@ def plot_candlestick_chart(data: pd.DataFrame, plot_type: PlotType, caption: str
     elif plot_type == PlotType.RENKO:
         fig = go.Figure(data=[go.Candlestick(x=timestamps, open=data['open'], high=data[["open", "close"]].max(axis=1), low=data[["open", "close"]].min(axis=1), close=data['close'], name='Historical Data')])
     elif plot_type == PlotType.QUANDL_JAPANESE:
-        fig = go.Figure(data=[go.Candlestick(x=timestamps, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'], name='Historical Data')])
+        fig = go.Figure(data=[go.Candlestick(x=timestamps, open=data['open'], high=data['high'], low=data['low'], close=data['close'], name='Historical Data')])
     else:
         print(f'Error: plot_type ({plot_type}) is not implemented yet')
         return

@@ -1,0 +1,4 @@
+[run]
+source = ./pyalgotrading
+omit =
+    tests.py

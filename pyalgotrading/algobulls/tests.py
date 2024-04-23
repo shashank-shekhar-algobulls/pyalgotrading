@@ -1614,10 +1614,19 @@ class TestAlgoBullsConnection(TestCase):
         result = self.connection.get_papertrading_job_status(self.strategy_code)
         self.assertEqual(result, "Mocked get_job_status")
 
+    @patch("pyalgotrading.algobulls.connection.AlgoBullsConnection.stop_job", Mock(return_value="Mocked stop_job"))
+    def test_stop_papertrading_job(self):
+        result = self.connection.stop_papertrading_job(self.strategy_code)
+        self.assertEqual(result, "Mocked stop_job")
+
     @patch("pyalgotrading.algobulls.connection.AlgoBullsConnection.get_logs", return_value="Mock get_logs")
     def test_get_papertrading_logs(self, mock_get_logs):
         result = self.connection.get_papertrading_logs(self.strategy_code)
         self.assertEqual(result, "Mock get_logs")
+
+    @patch("pyalgotrading.algobulls.connection.AlgoBullsConnection.get_report_pnl_table", Mock(return_value="Mocked get_report_pnl_table"))
+    def test_get_papertrading_report_pnl_table(self):
+        self.assertEqual(self.connection.get_papertrading_report_pnl_table(self.strategy_code), "Mocked get_report_pnl_table")
 
     @patch("pyalgotrading.algobulls.connection.AlgoBullsConnection.get_papertrading_report_pnl_table", return_value="Mock get_papertrading_report_pnl_table")
     @patch("pyalgotrading.algobulls.connection.AlgoBullsConnection.get_report_statistics", return_value="Mock get_report_statistics")
@@ -1630,6 +1639,24 @@ class TestAlgoBullsConnection(TestCase):
         }
         result = self.connection.get_papertrading_report_statistics(self.strategy_code)
         self.assertEqual(result, "Mock get_report_statistics")
+
+    @patch("pyalgotrading.algobulls.connection.AlgoBullsConnection.get_report_order_history", Mock(return_value="Mocked get_report_order_history"))
+    def test_get_papertrading_report_order_history(self):
+        self.assertEqual(self.connection.get_papertrading_report_order_history(self.strategy_code), "Mocked get_report_order_history")
+
+    @patch("pyalgotrading.algobulls.connection.AlgoBullsConnection.start_job", Mock(return_value="Mocked start_job"))
+    def test_livetrade(self):
+        self.assertIsNone(self.connection.livetrade(self.strategy_code))
+
+    @patch("pyalgotrading.algobulls.connection.AlgoBullsConnection.get_job_status", return_value="Mock get_job_status")
+    def test_get_realtrading_job_status(self, mock_get_job_status):
+        self.assertEqual(self.connection.get_realtrading_job_status(self.strategy_code), "Mock get_job_status")
+        mock_get_job_status.assert_called_once_with(self.strategy_code, TradingType.REALTRADING)
+
+    @patch("pyalgotrading.algobulls.connection.AlgoBullsConnection.stop_job", return_value="Mock stop_job")
+    def test_stop_realtrading_job(self, mock_stop_job):
+        self.assertEqual(self.connection.stop_realtrading_job(self.strategy_code), mock_stop_job.return_value)
+        mock_stop_job.assert_called_once_with(strategy_code=self.strategy_code, trading_type=TradingType.REALTRADING)
 
     @patch("pyalgotrading.algobulls.connection.AlgoBullsConnection.get_logs", MagicMock(return_value="Mock get_logs"))
     def test_get_realtrading_logs(self):

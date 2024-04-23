@@ -27,7 +27,7 @@ class OrderBracketBase(OrderBase):
         """
         self.instrument = instrument
         self.order_transaction_type = order_transaction_type
-        self.order_type = BrokerOrderTypeConstants.BROKER_ORDER_TYPE_BRACKET
+        self.order_type = BrokerOrderTypeConstants.BRACKET
         self.order_code = order_code
         self.order_variety = order_variety
         self.quantity = quantity
@@ -56,7 +56,7 @@ class BuyOrderBracket(OrderBracketBase):
         """
         Init method that is used while creating an object of this class
         """
-        super().__init__(instrument=instrument, order_transaction_type=BrokerOrderTransactionTypeConstants.BROKER_ORDER_TRANSACTION_TYPE_BUY, order_code=order_code, order_variety=order_variety, quantity=quantity, price=price,
+        super().__init__(instrument=instrument, order_transaction_type=BrokerOrderTransactionTypeConstants.BUY, order_code=order_code, order_variety=order_variety, quantity=quantity, price=price,
                          trigger_price=trigger_price, stoploss_trigger=stoploss_trigger, target_trigger=target_trigger, trailing_stoploss_trigger=trailing_stoploss_trigger)
 
 
@@ -69,5 +69,5 @@ class SellOrderBracket(OrderBracketBase):
         """
         Init method that is used while creating an object of this class
         """
-        super().__init__(instrument=instrument, order_transaction_type=BrokerOrderTransactionTypeConstants.BROKER_ORDER_TRANSACTION_TYPE_SELL, order_code=order_code, order_variety=order_variety, quantity=quantity, price=price,
+        super().__init__(instrument=instrument, order_transaction_type=BrokerOrderTransactionTypeConstants.SELL, order_code=order_code, order_variety=order_variety, quantity=quantity, price=price,
                          trigger_price=trigger_price, stoploss_trigger=stoploss_trigger, target_trigger=target_trigger, trailing_stoploss_trigger=trailing_stoploss_trigger)
